@@ -53,7 +53,8 @@ def check_and_update_api_key(api_key, invocation_type, credit_cost=1):
     # Initialize a boto3 DynamoDB resource
     dynamodb = boto3.resource('dynamodb')
     table = dynamodb.Table(apitable)  # Replace with your DynamoDB table name
-
+    print("The api key coming in is ")
+    print(api_key)
     # Try to get the item for the given API key
     response = table.get_item(Key={'ApiKey': api_key})
     item = response.get('Item')
