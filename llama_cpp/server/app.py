@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import json
+import boto3
 
 from threading import Lock
 from functools import partial
@@ -43,6 +44,49 @@ from llama_cpp.server.types import (
     ModelList,
 )
 from llama_cpp.server.errors import RouteErrorHandler
+
+
+title_message = os.getenv('TITLEMESSAGE', "🦙 llama.cpp Python API")
+apitable = os.getenv('APITABLE')
+
+def check_and_update_api_key(api_key, invocation_type, credit_cost=1):
+    # Initialize a boto3 DynamoDB resource
+    dynamodb = boto3.resource('dynamodb')
+    table = dynamodb.Table(apitable)  # Replace with your DynamoDB table name
+
+    # Try to get the item for the given API key
+    response = table.get_item(Key={'ApiKey': api_key})
+    item = response.get('Item')
+
+    if not item or not item.get('Authorized') or item.get('Credits', 0) < credit_cost:
+        # API key not found, not authorized, or not enough credits
+        return False
+
+    # Deduct credit_cost from the Credits and prepare TotalInvocations update
+    new_credits = item['Credits'] - credit_cost
+    invocations_update = {
+        ':cost': credit_cost,
+        ':newval': 1,
+        ':inv_type': {invocation_type: 0}
+    }
+
+    # Update the item in DynamoDB for the given API key
+    try:
+        table.update_item(
+            Key={'ApiKey': api_key},
+            UpdateExpression="SET Credits = Credits - :cost ADD TotalInvocations.#type :newval",
+            ExpressionAttributeNames={
+                '#type': invocation_type
+            },
+            ExpressionAttributeValues=invocations_update,
+            ConditionExpression="attribute_exists(ApiKey) AND Credits >= :cost",
+            ReturnValues="UPDATED_NEW"
+        )
+        return True
+    except Exception as e:
+        print(f"Error updating item: {e}")
+        return False
+
 
 
 router = APIRouter(route_class=RouteErrorHandler)
@@ -117,7 +161,8 @@ def create_app(
     middleware = [Middleware(RawContextMiddleware, plugins=(RequestIdPlugin(),))]
     app = FastAPI(
         middleware=middleware,
-        title="🦙 llama.cpp Python API",
+        ###WORKHERE Make a modification so this reads in from OS on the specific endpoint for the end customer
+        title=title_message,
         version=llama_cpp.__version__,
     )
     app.add_middleware(
@@ -175,7 +220,7 @@ def _logit_bias_tokens_to_input_ids(
 # Setup Bearer authentication scheme
 bearer_scheme = HTTPBearer(auto_error=False)
 
-
+#so here is where I can put in my custom API authentication system. ###WORKHERE
 async def authenticate(
     settings: Settings = Depends(get_server_settings),
     authorization: Optional[str] = Depends(bearer_scheme),
@@ -185,14 +230,15 @@ async def authenticate(
         return True
 
     # check bearer credentials against the api_key
-    if authorization and authorization.credentials == settings.api_key:
+    if authorization: # and authorization.credentials == settings.api_key:
+        if check_and_update_api_key(api_key=authorization.credentials,invocation_type="text"):
         # api key is valid
-        return authorization.credentials
+            return authorization.credentials
 
     # raise http error 401
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Invalid API key",
+        detail="Invalid API key. Check API key and credits.",
     )
 
 
