@@ -52,9 +52,10 @@ apitable = os.getenv('APITABLE')
 def check_and_update_api_key(api_key, invocation_type, credit_cost=1):
     # Initialize a boto3 DynamoDB resource
     dynamodb = boto3.resource('dynamodb')
-    table = dynamodb.Table(apitable)  # Replace with your DynamoDB table name
-    print("The api key coming in is ")
-    print(api_key)
+    table = dynamodb.Table(apitable)  # Ensure 'apitable' is correctly defined earlier in your code
+
+    print("The api key coming in is ", api_key)
+    
     # Try to get the item for the given API key
     response = table.get_item(Key={'ApiKey': api_key})
     item = response.get('Item')
@@ -63,23 +64,23 @@ def check_and_update_api_key(api_key, invocation_type, credit_cost=1):
         # API key not found, not authorized, or not enough credits
         return False
 
-    # Deduct credit_cost from the Credits and prepare TotalInvocations update
-    new_credits = item['Credits'] - credit_cost
-    invocations_update = {
-        ':cost': credit_cost,
-        ':newval': 1,
-        ':inv_type': {invocation_type: 0}
-    }
+    # Prepare the update expression
+    update_expression = "SET Credits = Credits - :cost"
+    expression_attribute_values = {':cost': credit_cost, ':newval': 1}
+    expression_attribute_names = {'#type': invocation_type}
+
+    # The UpdateExpression to handle both new and existing invocation types
+    update_expression += ", TotalInvocations.#type = if_not_exists(TotalInvocations.#type, :startval) + :newval"
+
+    expression_attribute_values[':startval'] = 0
 
     # Update the item in DynamoDB for the given API key
     try:
         table.update_item(
             Key={'ApiKey': api_key},
-            UpdateExpression="SET Credits = Credits - :cost ADD TotalInvocations.#type :newval",
-            ExpressionAttributeNames={
-                '#type': invocation_type
-            },
-            ExpressionAttributeValues=invocations_update,
+            UpdateExpression=update_expression,
+            ExpressionAttributeNames=expression_attribute_names,
+            ExpressionAttributeValues=expression_attribute_values,
             ConditionExpression="attribute_exists(ApiKey) AND Credits >= :cost",
             ReturnValues="UPDATED_NEW"
         )
