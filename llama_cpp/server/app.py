@@ -60,9 +60,12 @@ def check_and_update_api_key(api_key, invocation_type, credit_cost=1):
     response = table.get_item(Key={'ApiKey': api_key})
     item = response.get('Item')
 
-    if not item or not item.get('Authorized') or item.get('Credits', 0) < credit_cost:
+    if not item or not item.get('Authorized'):
         # API key not found, not authorized, or not enough credits
-        return False
+        return False,"API key not authorized. "
+    creditval = item.get('Credits', 0)
+    if creditval < credit_cost:
+        return False,"API Key does not have enough credits, have "+str(creditval)+", need "+str(credit_cost)
 
     # Prepare the update expression
     update_expression = "SET Credits = Credits - :cost"
@@ -84,10 +87,10 @@ def check_and_update_api_key(api_key, invocation_type, credit_cost=1):
             ConditionExpression="attribute_exists(ApiKey) AND Credits >= :cost",
             ReturnValues="UPDATED_NEW"
         )
-        return True
+        return True,""
     except Exception as e:
         print(f"Error updating item: {e}")
-        return False
+        return False, "There was an error with that API key. Please check and try again, otherwise contact support."
 
 
 
@@ -233,9 +236,15 @@ async def authenticate(
 
     # check bearer credentials against the api_key
     if authorization: # and authorization.credentials == settings.api_key:
-        if check_and_update_api_key(api_key=authorization.credentials,invocation_type="text"):
+        goodkey,message=check_and_update_api_key(api_key=authorization.credentials,invocation_type="text")
+        if goodkey:
         # api key is valid
             return authorization.credentials
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=message,
+            )
 
     # raise http error 401
     raise HTTPException(
