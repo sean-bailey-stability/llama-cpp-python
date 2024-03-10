@@ -240,16 +240,17 @@ async def authenticate(
         return True
 
     # check bearer credentials against the api_key
-    if authorization: # and authorization.credentials == settings.api_key:
-        goodkey,message=check_and_update_api_key(api_key=authorization.credentials,invocation_type="text")
-        if goodkey:
+    if authorization and authorization.credentials == settings.api_key:
+        #goodkey,message=check_and_update_api_key(api_key=authorization.credentials,invocation_type="text")
+        #if goodkey:
         # api key is valid
-            return authorization.credentials
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail=message,
-            )
+        #    return authorization.credentials
+        #else:
+        #    raise HTTPException(
+        #        status_code=status.HTTP_401_UNAUTHORIZED,
+        #        detail=message,
+        #    )
+        return authorization.credentials
 
     # raise http error 401
     raise HTTPException(
