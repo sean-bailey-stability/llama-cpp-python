@@ -185,8 +185,8 @@ def create_app(
     #We're going to see if we can get the gradio url settings working
     CUSTOM_PATH = "/gradio"
 
-    io = gr.Interface(lambda x: "Hello, " + x + "!", "textbox", "textbox")
-    app = gr.mount_gradio_app(app, io, path=CUSTOM_PATH,share=True,debug=True)
+    io = gr.Interface(lambda x: "Hello, " + x + "!", "textbox", "textbox",share=True,debug=True)
+    app = gr.mount_gradio_app(app, io, path=CUSTOM_PATH)
     return app
 
 
