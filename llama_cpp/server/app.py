@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import json
 import boto3
+import gradio as gr
 
 from threading import Lock
 from functools import partial
@@ -181,7 +182,11 @@ def create_app(
 
     assert model_settings is not None
     set_llama_proxy(model_settings=model_settings)
+    #We're going to see if we can get the gradio url settings working
+    CUSTOM_PATH = "/gradio"
 
+    io = gr.Interface(lambda x: "Hello, " + x + "!", "textbox", "textbox")
+    app = gr.mount_gradio_app(app, io, path=CUSTOM_PATH,share=True,debug=True)
     return app
 
 
