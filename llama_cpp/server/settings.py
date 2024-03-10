@@ -3,7 +3,7 @@ from __future__ import annotations
 import multiprocessing
 
 from typing import Optional, List, Literal, Union
-from pydantic import Field, BaseSettings, root_validator
+from pydantic import Field, root_validator
 from pydantic_settings import BaseSettings
 
 import llama_cpp
