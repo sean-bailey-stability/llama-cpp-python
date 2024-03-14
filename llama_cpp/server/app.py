@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import os
 import json
-import boto3
 #import gradio as gr
 
 from threading import Lock
@@ -53,52 +52,6 @@ from llama_cpp.server.errors import RouteErrorHandler
 
 
 title_message = os.getenv('TITLEMESSAGE', "🦙 llama.cpp Python API")
-apitable = os.getenv('APITABLE')
-
-def check_and_update_api_key(api_key, invocation_type, credit_cost=1):
-    # Initialize a boto3 DynamoDB resource
-    dynamodb = boto3.resource('dynamodb')
-    table = dynamodb.Table(apitable)  # Ensure 'apitable' is correctly defined earlier in your code
-
-    print("The api key coming in is ", api_key)
-    
-    # Try to get the item for the given API key
-    response = table.get_item(Key={'ApiKey': api_key})
-    item = response.get('Item')
-
-    if not item or not item.get('Authorized'):
-        # API key not found, not authorized, or not enough credits
-        return False,"API key not authorized. "
-    creditval = item.get('Credits', 0)
-    if creditval < credit_cost:
-        return False,"API Key does not have enough credits, have "+str(creditval)+", need "+str(credit_cost)
-
-    # Prepare the update expression
-    update_expression = "SET Credits = Credits - :cost"
-    expression_attribute_values = {':cost': credit_cost, ':newval': 1}
-    expression_attribute_names = {'#type': invocation_type}
-
-    # The UpdateExpression to handle both new and existing invocation types
-    update_expression += ", TotalInvocations.#type = if_not_exists(TotalInvocations.#type, :startval) + :newval"
-
-    expression_attribute_values[':startval'] = 0
-
-    # Update the item in DynamoDB for the given API key
-    try:
-        table.update_item(
-            Key={'ApiKey': api_key},
-            UpdateExpression=update_expression,
-            ExpressionAttributeNames=expression_attribute_names,
-            ExpressionAttributeValues=expression_attribute_values,
-            ConditionExpression="attribute_exists(ApiKey) AND Credits >= :cost",
-            ReturnValues="UPDATED_NEW"
-        )
-        return True,""
-    except Exception as e:
-        print(f"Error updating item: {e}")
-        return False, "There was an error with that API key. Please check and try again, otherwise contact support."
-
-
 
 router = APIRouter(route_class=RouteErrorHandler)
 
@@ -246,15 +199,7 @@ async def authenticate(
 
     # check bearer credentials against the api_key
     if authorization and authorization.credentials == settings.api_key:
-        #goodkey,message=check_and_update_api_key(api_key=authorization.credentials,invocation_type="text")
-        #if goodkey:
-        # api key is valid
-        #    return authorization.credentials
-        #else:
-        #    raise HTTPException(
-        #        status_code=status.HTTP_401_UNAUTHORIZED,
-        #        detail=message,
-        #    )
+
         return authorization.credentials
 
     # raise http error 401
